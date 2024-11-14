@@ -1,0 +1,205 @@
+<button id="startRecord">Iniciar Grabación</button>
+<button id="stopRecord">Detener Grabación</button>
+<audio id="recordedAudio" controls></audio>
+
+<script src="https://www.WebRTC-Experiment.com/RecordRTC.js"></script>
+<script>
+  let ws = { current: null };
+  let serviceAvailable = false;
+  let isWaiting = false;
+  let isPlayingAudio = false
+
+  const generateClientId = () => {
+    return `89-${Math.floor(Math.random() * 1e9)
+      .toString()
+      .padStart(9, "0")}`
+  };
+
+  const getWebSocketUrl = () => {
+    const url = "wss://happyctesting.com/ws/audio/";
+    const lang = 'en-US';
+    const clientId = generateClientId();
+    return `${url}${clientId}?lang=${lang}`;
+  };
+
+  const connectWebSocket = () => {
+    console.log('entrando al socket')
+    if (ws.current) { ws.current.close() }
+
+    const wsUrl = getWebSocketUrl();
+    console.log(`${getTimeNow()} - connecting to ws: ${wsUrl}`)
+    ws.current = new WebSocket(wsUrl);
+
+    ws.current.onopen = () => {
+      serviceAvailable = true
+      //console.log('connected to ws')
+    };
+
+    ws.current.onerror = (error) => {
+      console.error(getTimeNow(), " - Something went wrong with the WS: ", error.message);
+      serviceAvailable = false
+      isWaiting = false
+      //reconnectWebSocket();
+    };
+
+    ws.current.onclose = () => {
+      serviceAvailable = false
+      isWaiting = false
+    };
+
+    ws.current.onmessage = (event) => {
+      //console.log("received:", event.data);
+      if (event.data) {
+        isWaiting = false
+        playEncodedAudio(event.data);
+      }
+    };
+  };
+
+  const getTimeNow = () => {
+    const now = new Date(Date.now());
+    const formattedTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    return formattedTime
+  }
+
+  const playEncodedAudio = async (buffer) => {
+    if (isRecording) {
+      return;
+    }
+
+    try {
+      const blob = new Blob([atob(buffer)], { type: 'audio/mp3' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+
+      audio.addEventListener('play', () => {
+        isPlayingAudio = true;
+      });
+      audio.addEventListener('ended', () => {
+        isPlayingAudio = false;
+      });
+
+      audio.play();
+    } catch (error) {
+      console.error("Could not play received audio: ", error);
+    }
+  };
+
+  const startButton = document.getElementById('startRecord');
+  const stopButton = document.getElementById('stopRecord');
+  const audio = document.getElementById('recordedAudio');
+
+  let recorder = null;
+  let isRecorder = false;
+  let speechEndedTimeout;
+  const recognition = new webkitSpeechRecognition();
+
+  recognition.continuous = true;
+  recognition.onresult = (event) => {
+    const transcript = event.results[event.results.length
+      - 1][0].transcript;
+
+    if (event.results[event.results.length - 1][0].confidence > 0.5 || transcript.includes('hola')) {
+      console.log(event.results[event.results.length - 1][0].confidence);
+      if (!isRecorder) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            recorder = RecordRTC(stream, { type: 'audio' });
+            recorder.startRecording();
+            isRecorder = true;
+            connectWebSocket()
+            console.log(recorder)
+          })
+          .catch(error => {
+            console.error('Error al acceder al micrófono:', error);
+          }); 
+      }
+    }
+    else {
+      recorder.stopRecording(() => {
+        const blob = recorder.getBlob();
+        audio.src = URL.createObjectURL(blob);
+        isRecorder = false;
+        const uri = URL.createObjectURL(blob);
+        
+        if (uri) {
+          sendAudioFileWS(uri);
+        }
+      });
+    }
+  };
+
+  const sendAudioFileWS = async (fileUri) => {
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(await fetch(fileUri).then(response => response.blob()));
+
+      reader.onload = (event) => {
+        const fileData = event.target.result;
+        const fileName = fileUri.split('/').pop();
+
+        isWaiting = true;
+
+        const message = `${fileName},${fileData}`;
+        ws.current.send(message);
+      };
+
+      reader.onerror = (error) => {
+        console.error('Error reading file:', error);
+      };
+    } catch (error) {
+      console.error('Error sending file:', error);
+    } finally {
+      isWaiting = false;
+    }
+  };
+
+  recognition.start();
+
+  recognition.onend = () => {
+    clearTimeout(speechEndedTimeout);
+    if (isRecorder) {
+      recorder.stopRecording(() => {
+        const blob = recorder.getBlob();
+        audio.src = URL.createObjectURL(blob);
+        isRecorder = false;
+        const uri = URL.createObjectURL(blob);
+
+        if (uri) {
+          sendAudioFileWS(uri);
+        }
+      });
+    }
+  }
+
+  startButton.addEventListener('click', () => {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        recorder = RecordRTC(stream, { type: 'audio' });
+        recorder.startRecording();
+
+      })
+      .catch(error => {
+        console.error('Error al acceder al micrófono:', error);
+      });
+  });
+
+  stopButton.addEventListener('click', () => {
+    recorder.stopRecording(() => {
+      const blob = recorder.getBlob();
+      audio.src = URL.createObjectURL(blob);
+      isRecorder = false;
+      const uri = URL.createObjectURL(blob);
+
+      if (uri) {
+        sendAudioFileWS(uri);
+      }
+    });
+  });
+
+</script>
