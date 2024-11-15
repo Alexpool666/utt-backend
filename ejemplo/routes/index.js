@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-router.get('/user', function (req, res) {
+router.get('/user', function (req, res, next) {
   const { name, age } = req.query
 
   res.status(200).json({
@@ -10,12 +10,8 @@ router.get('/user', function (req, res) {
   });
 })
 
-router.post('/create-user', function (req, res) {
+router.post('/create-user', function (req, res, next) {
   const { name, age } = req.body
-
-  if (!name || !age) {
-    return res.status(400).json({ error: 'Missing name or age' });
-  }
 
   res.status(201).json({
     "name": name,
