@@ -1,11 +1,12 @@
-const express = require('express');
-const router = require('./routes');
+require('dotenv').config();
+import express from 'express';
+import router from './routes';
 const app = express();
 
 app.use(express.json())
 app.use('/api', router);
 
-const PORT = parseInt(process.env.PORT) || 3000;
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   console.log(`App listening on port ${PORT}`);
