@@ -21,10 +21,10 @@ const User = sequelize.define('User', {
   age: {
     type: DataTypes.INTEGER
   },
-  created_at: {
+  createdAt: {
     type: DataTypes.DATE
   },
-  updated_at: {
+  updatedAt: {
     type: DataTypes.DATE
   }
 });

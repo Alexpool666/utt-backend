@@ -12,6 +12,7 @@ const router = express.Router();
 
 router.get('/user/:id', async function (req, res, next) {
   const { id } = req.params
+  console.log(id)
   const userFound = await user.findByPk(id);
 
   if (userFound) {
@@ -25,7 +26,6 @@ router.post('/user', async function (req, res, next) {
   const { name, last_name, age } = req.body
 
   await user.create({
-    id: 2,
     name: name,
     last_name: last_name,
     age: age,
