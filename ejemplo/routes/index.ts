@@ -1,4 +1,3 @@
-import Sequelize from 'sequelize';
 import express from 'express';
 import user from '../db/models/user';
 
@@ -33,6 +32,32 @@ router.post('/user', async function (req, res, next) {
     updatedAt: new Date()
   }).then(() => {
     res.status(201).json({ message: 'User created' });
+  }).catch(err => {
+    console.log(err);
+    res.status(500).json(err);
+  })
+})
+
+router.put('/user/:id', async function (req, res, next) {
+  const { id } = req.params
+  const { name, last_name, age } = req.body
+  await user.update({
+    name: name,
+    last_name: last_name,
+    age: age,
+    updatedAt: new Date()
+  }, { where: { id: id } }).then(() => {
+    res.status(200).json({ message: 'User updated' });
+  }).catch(err => {
+    console.log(err);
+    res.status(500).json(err);
+  })
+})
+
+router.delete('/user/:id', async function (req, res, next) {
+  const { id } = req.params
+  await user.destroy({ where: { id: id } }).then(() => {
+    res.status(200).json({ message: 'User deleted' });
   }).catch(err => {
     console.log(err);
     res.status(500).json(err);
